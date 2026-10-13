@@ -1,24 +1,25 @@
 package com.onthego.stt
 
 import android.content.Context
-import java.io.File
+import com.onthego.vad.SileroVad
 
 /**
  * JNI wrapper over whisper.cpp. Loads ggml-base once per utterance,
- * then unloads to keep 6GB RAM free. Model downloaded on first run.
+ * then unloads to keep 6GB RAM free. Runs VAD first when enabled.
  */
 class WhisperEngine {
-    fun modelFile(ctx: Context): File =
-        File(ctx.filesDir, "models/ggml-base.bin")
 
-    fun transcribe(ctx: Context, pcm16k: ShortArray): String {
-        val f = modelFile(ctx)
-        if (!f.exists()) return "" // TODO: trigger ModelDownloader then retry
-        // TODO v0.1: call native transcribe(f.path, pcm16k, lang="en")
-        return nativeTranscribe(f.absolutePath, pcm16k)
+    fun isReady(ctx: Context): Boolean = ModelDownloader.isReady(ctx)
+
+    fun transcribe(ctx: Context, pcm16k: ShortArray, language: String = "en"): String {
+        val f = ModelDownloader.modelFile(ctx)
+        if (!isReady(ctx)) return ""
+        val speech = if (com.onthego.Config.vadEnabled) SileroVad.filterSpeech(pcm16k) else pcm16k
+        if (speech.isEmpty()) return ""
+        return nativeTranscribe(f.absolutePath, speech, language)
     }
 
-    private external fun nativeTranscribe(modelPath: String, pcm: ShortArray): String
+    private external fun nativeTranscribe(modelPath: String, pcm: ShortArray, lang: String): String
 
     companion object {
         init {

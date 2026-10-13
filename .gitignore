@@ -12,6 +12,5 @@
 .externalNativeBuild
 .cxx/
 whisper.cpp/build/
-app/src/main/cpp/whisper.cpp/
 *.bin
 !docs/*.bin
