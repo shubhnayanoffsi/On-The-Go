@@ -71,9 +71,10 @@ class TranscriptionService : Service() {
                 }
                 runOnUiThreadFix {
                     if (text.isNotBlank()) {
-                        com.onthego.output.ClipboardHelper.copy(this, text)
+                        if (com.onthego.Config.clipboard)
+                            com.onthego.output.ClipboardHelper.copy(this, text)
                         ResultCard.show(this, text)
-                        HistoryStore.append(this, text)
+                        if (com.onthego.Config.historyFile) HistoryStore.append(this, text)
                     } else {
                         ResultCard.show(this, "Heard nothing. Try again.")
                     }

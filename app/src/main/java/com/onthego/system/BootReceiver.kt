@@ -9,7 +9,8 @@ import com.onthego.service.TranscriptionService
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            // TODO: check Config autostart_on_boot before start
+            com.onthego.Config.load(ctx)
+            if (!com.onthego.Config.autostartOnBoot) return
             ctx.startForegroundService(Intent(ctx, TranscriptionService::class.java))
         }
     }
