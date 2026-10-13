@@ -27,8 +27,36 @@ object OtaUpdater {
         return false
     }
 
+    fun parseLatest(json: String): Latest {
+        fun f(k: String) = Regex("\"$k\"\\s*:\\s*\"([^\"]+)\"").find(json)?.groupValues?.get(1) ?: ""
+        return Latest(f("version"), f("apk"), f("note"))
+    }
+
     fun apkUrl(l: Latest): String =
         "https://github.com/shubhnayanoffsi/On-The-Go/releases/latest/download/${l.apk}"
+
+    /** Full check + download. Status lines go to onStatus. Call off main thread. */
+    fun checkAndUpdate(ctx: Context, onStatus: (String) -> Unit) {
+        val installed = try {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0.1.0"
+        } catch (_: Exception) { "0.1.0" }
+        onStatus("Checking... (installed $installed)")
+        val latest = parseLatest(URL(LATEST_URL).readText())
+        if (latest.version.isBlank() || latest.apk.isBlank()) {
+            onStatus("Update file unreadable."); return
+        }
+        if (!isNewer(installed, latest.version)) {
+            onStatus("You are on latest ($installed)."); return
+        }
+        onStatus("Found ${latest.version}. Downloading...")
+        val dir = File(ctx.cacheDir, "ota").apply { mkdirs() }
+        val out = File(dir, latest.apk)
+        URL(apkUrl(latest)).openStream().use { inp ->
+            out.outputStream().use { o -> inp.copyTo(o) }
+        }
+        onStatus("Downloaded. Opening installer...")
+        installApk(ctx, out)
+    }
 
     fun installApk(ctx: Context, apk: File) {
         val uri: Uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".provider", apk)

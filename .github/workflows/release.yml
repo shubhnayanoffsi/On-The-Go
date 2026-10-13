@@ -16,16 +16,23 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
-      - name: Build debug APK (scaffold check)
+      - name: Accept licenses + install NDK/CMake
         run: |
-          echo "v0.1 scaffold: full Gradle build runs after whisper.cpp submodule is pinned"
-          ls app/src/main/java/com/onthego
-      - name: Publish OTA files
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Build release APK (arm64)
+        run: |
+          chmod +x gradlew 2>/dev/null || true
+          ./gradlew :app:assembleRelease --stacktrace
+      - name: Rename + OTA files
         run: |
           TAG="${GITHUB_REF_NAME}"
-          VER="${TAG#v}"
-          sed "s/0\.1\.0/$VER/g" ota/latest.json > latest.json
-          echo "OTA latest.json for $TAG ready"
+          APK="OnTheGo-${TAG}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          sed "s/0\.1\.0/${TAG#v}/g; s/OnTheGo-v0.1.0.apk/$APK/" ota/latest.json > latest.json
+          cat latest.json
       - uses: softprops/action-gh-release@v2
         with:
-          files: latest.json
+          files: |
+            OnTheGo-*.apk
+            latest.json

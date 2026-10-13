@@ -134,15 +134,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnUpdate).setOnClickListener {
             findViewById<TextView>(R.id.updateStatus).text = "Checking..."
             Thread {
-                val msg = try {
-                    val json = java.net.URL(OtaUpdater.LATEST_URL).readText()
-                    val ver = Regex("\"version\"\\s*:\\s*\"([^\"]+)\"").find(json)?.groupValues?.get(1) ?: "?"
-                    val installed = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.1.0"
-                    if (OtaUpdater.isNewer(installed, ver)) "Update found: $ver. Open Releases to install."
-                    else "You are on latest ($installed)."
-                } catch (e: Exception) {
-                    "Check failed: ${e.message}"
-                }
+                var msg = ""
+                OtaUpdater.checkAndUpdate(this) { msg = it }
                 runOnUiThread { findViewById<TextView>(R.id.updateStatus).text = msg }
             }.start()
         }

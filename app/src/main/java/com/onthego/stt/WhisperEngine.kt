@@ -14,9 +14,11 @@ class WhisperEngine {
     fun transcribe(ctx: Context, pcm16k: ShortArray, language: String = "en"): String {
         val f = ModelDownloader.modelFile(ctx)
         if (!isReady(ctx)) return ""
-        val speech = if (com.onthego.Config.vadEnabled) SileroVad.filterSpeech(pcm16k) else pcm16k
+        val lang = if (language == "auto") "" else language
+        val speech = if (com.onthego.Config.vadEnabled)
+            SileroVad.filterSpeech(pcm16k, com.onthego.Config.vadStrict) else pcm16k
         if (speech.isEmpty()) return ""
-        return nativeTranscribe(f.absolutePath, speech, language)
+        return nativeTranscribe(f.absolutePath, speech, lang)
     }
 
     private external fun nativeTranscribe(modelPath: String, pcm: ShortArray, lang: String): String

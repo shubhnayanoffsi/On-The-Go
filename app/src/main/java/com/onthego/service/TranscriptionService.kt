@@ -7,6 +7,8 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.onthego.Config
+import com.onthego.ai.ApiFixer
 import com.onthego.audio.AudioCapture
 import com.onthego.output.HistoryStore
 import com.onthego.stt.ModelDownloader
@@ -14,7 +16,7 @@ import com.onthego.stt.WhisperEngine
 
 /**
  * Single-instance foreground service. Owns mic + bubble state.
- * Tap bubble -> start, tap again -> stop, transcribe off-main-thread, output.
+ * Bubble tap, Quick tile, or TOGGLE intent all funnel into toggle().
  */
 class TranscriptionService : Service() {
 
@@ -27,66 +29,69 @@ class TranscriptionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Config.load(this)
         startForeground(1, notif("Ready - tap bubble to dictate"))
-        BubbleManager.show(this, ::onBubbleTap)
+        BubbleManager.show(this, ::toggle)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // single instance: ignore repeat starts while busy
-        return START_STICKY
+        if (intent?.action == ACTION_TOGGLE) toggle()
+        return START_STICKY // single instance: repeat starts reuse this service
     }
 
-    private fun onBubbleTap() {
+    fun toggle() {
         if (busy) return
-        if (!recording) {
-            if (!ModelDownloader.isReady(this)) {
-                ResultCard.show(this, "Downloading base model, one time only...")
-                busy = true
-                Thread {
-                    try {
-                        ModelDownloader.download(this) { /* TODO: progress on bubble */ }
-                    } catch (e: Exception) {
-                        val msg = "Model download failed: ${e.message}"
-                        android.os.Handler(mainLooper).post { ResultCard.show(this, msg) }
-                    } finally {
-                        busy = false
-                    }
-                }.start()
-                return
-            }
-            recording = true
-            BubbleManager.setRecording(true)
-            capture.start()
-        } else {
-            recording = false
-            BubbleManager.setRecording(false)
+        if (!recording) startRec() else stopAndTranscribe()
+    }
+
+    private fun startRec() {
+        if (!ModelDownloader.isReady(this)) {
+            ResultCard.show(this, "Downloading base model, one time only...")
             busy = true
-            startForeground(1, notif("Transcribing..."))
             Thread {
-                val pcm = capture.stop() // 16kHz mono s16
-                val text = try {
-                    whisper.transcribe(this, pcm)
+                try {
+                    ModelDownloader.download(this) { /* TODO: progress on bubble */ }
                 } catch (e: Exception) {
-                    ""
-                }
-                runOnUiThreadFix {
-                    if (text.isNotBlank()) {
-                        if (com.onthego.Config.clipboard)
-                            com.onthego.output.ClipboardHelper.copy(this, text)
-                        ResultCard.show(this, text)
-                        if (com.onthego.Config.historyFile) HistoryStore.append(this, text)
-                    } else {
-                        ResultCard.show(this, "Heard nothing. Try again.")
-                    }
+                    val msg = "Model download failed: ${e.message}"
+                    android.os.Handler(mainLooper).post { ResultCard.show(this, msg) }
+                } finally {
                     busy = false
-                    startForeground(1, notif("Ready - tap bubble to dictate"))
                 }
             }.start()
+            return
         }
+        recording = true
+        BubbleManager.setRecording(true)
+        capture.start()
     }
 
-    private fun runOnUiThreadFix(fn: () -> Unit) {
-        android.os.Handler(mainLooper).post { fn() }
+    private fun stopAndTranscribe() {
+        recording = false
+        BubbleManager.setRecording(false)
+        busy = true
+        startForeground(1, notif("Transcribing..."))
+        Thread {
+            val pcm = capture.stop() // 16kHz mono s16
+            var text = try {
+                whisper.transcribe(this, pcm, Config.language)
+            } catch (e: Exception) {
+                ""
+            }
+            text = ApiFixer.apply(Config.aiFixMode, text)
+            val done = text
+            android.os.Handler(mainLooper).post {
+                if (done.isNotBlank()) {
+                    if (Config.clipboard)
+                        com.onthego.output.ClipboardHelper.copy(this, done)
+                    ResultCard.show(this, done) { toggle() }
+                    if (Config.historyFile) HistoryStore.append(this, done)
+                } else {
+                    ResultCard.show(this, "Heard nothing. Try again.") { toggle() }
+                }
+                busy = false
+                startForeground(1, notif("Ready - tap bubble to dictate"))
+            }
+        }.start()
     }
 
     private fun notif(msg: String): Notification {
@@ -96,5 +101,9 @@ class TranscriptionService : Service() {
         return NotificationCompat.Builder(this, ch)
             .setContentTitle("On The Go").setContentText(msg)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now).build()
+    }
+
+    companion object {
+        const val ACTION_TOGGLE = "com.onthego.TOGGLE"
     }
 }

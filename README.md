@@ -13,10 +13,11 @@ Offline voice-to-text for Android. Tap bubble, speak, get text.
 
 ## Quick start (user)
 
-1. Install APK from Releases.
-2. Grant mic + overlay + battery no-kill.
-3. Model downloads once to app storage.
-4. Tap bubble to record, tap again to get text.
+1. Install APK from Releases (`OnTheGo-v*.apk`).
+2. Open app, grant mic + overlay + battery no-kill, tap Start service.
+3. Base model downloads once (~142MB) to app storage.
+4. Tap bubble to record, tap again to get text. Clipboard + card + monthly history.
+5. Updates: Settings > Check for updates now, or auto prompt on start.
 
 ## Quick start (dev)
 
