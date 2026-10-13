@@ -1,0 +1,17 @@
+/.gradle/
+/build/
+/app/build/
+/local.properties
+*.iml
+.DS_Store
+/userdata/
+*.ap_
+*.apk
+!ota/*.apk
+/captures
+.externalNativeBuild
+.cxx/
+whisper.cpp/build/
+app/src/main/cpp/whisper.cpp/
+*.bin
+!docs/*.bin

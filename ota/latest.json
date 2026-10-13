@@ -1,0 +1,5 @@
+{
+  "version": "0.1.0",
+  "apk": "OnTheGo-v0.1.0.apk",
+  "note": "Initial scaffold. whisper.cpp wiring in progress."
+}

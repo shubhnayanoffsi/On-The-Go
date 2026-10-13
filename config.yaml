@@ -1,0 +1,35 @@
+whisper:
+  engine: whisper.cpp
+  model: base
+  model_file: ggml-base.bin
+  model_url: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+  language: en
+  custom_model_dir: models/custom
+
+vad:
+  enabled: true
+  engine: silero
+  strict: 2
+
+ai_fix:
+  mode: off  # off | api
+  api_provider: ""  # groq | gemini (v0.2, text-only, key in system keystore)
+  api_key: ""
+
+output:
+  clipboard: true
+  card: true
+  card_duration_seconds: 5
+  history_file: true  # monthly split, keep forever
+
+ui:
+  bubble_position: bottom_right
+  bubble_size: medium
+  bubble_color_idle: "#444444"
+  bubble_color_recording: "#FF3333"
+  language: en
+
+system:
+  autostart_on_boot: true
+  single_instance: true
+  update_channel: stable

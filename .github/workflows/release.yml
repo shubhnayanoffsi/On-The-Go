@@ -1,0 +1,31 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Build debug APK (scaffold check)
+        run: |
+          echo "v0.1 scaffold: full Gradle build runs after whisper.cpp submodule is pinned"
+          ls app/src/main/java/com/onthego
+      - name: Publish OTA files
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+          sed "s/0\.1\.0/$VER/g" ota/latest.json > latest.json
+          echo "OTA latest.json for $TAG ready"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: latest.json
