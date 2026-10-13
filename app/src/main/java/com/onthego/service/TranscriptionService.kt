@@ -46,7 +46,8 @@ class TranscriptionService : Service() {
                     try {
                         ModelDownloader.download(this) { /* TODO: progress on bubble */ }
                     } catch (e: Exception) {
-                        ResultCard.show(this, "Model download failed: ${e.message}")
+                        val msg = "Model download failed: ${e.message}"
+                        android.os.Handler(mainLooper).post { ResultCard.show(this, msg) }
                     } finally {
                         busy = false
                     }
