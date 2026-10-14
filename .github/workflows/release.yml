@@ -20,16 +20,18 @@ jobs:
         run: |
           yes | sdkmanager --licenses > /dev/null
           sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
-      - name: Build release APK (arm64)
+      - name: Build debug APK (arm64, signed with debug key, installable)
         run: |
-          chmod +x gradlew 2>/dev/null || true
-          ./gradlew :app:assembleRelease --stacktrace
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace
+          ls -la app/build/outputs/apk/debug/
       - name: Rename + OTA files
         run: |
           TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
           APK="OnTheGo-${TAG}.apk"
-          cp app/build/outputs/apk/release/app-release.apk "$APK"
-          sed "s/0\.1\.0/${TAG#v}/g; s/OnTheGo-v0.1.0.apk/$APK/" ota/latest.json > latest.json
+          cp app/build/outputs/apk/debug/app-debug.apk "$APK"
+          printf '{\n  "version": "%s",\n  "apk": "%s",\n  "note": "Offline voice-to-text. Tap bubble, speak, get text."\n}\n' "$VER" "$APK" > latest.json
           cat latest.json
       - uses: softprops/action-gh-release@v2
         with:
