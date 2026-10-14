@@ -15,8 +15,8 @@ import kotlin.math.abs
 
 /**
  * Real floating bubble. Grey idle (#444444), red recording (#FF3333).
- * Drag to move, snaps to nearest corner, tap to toggle dictation.
- * Position + size persist in Config.
+ * Free-drag anywhere, tap to toggle dictation.
+ * Raw x/y persist in Config.bubbleX/bubbleY (-1 = bottom-right default).
  */
 object BubbleManager {
     private var wm: WindowManager? = null
@@ -56,8 +56,13 @@ object BubbleManager {
         ).apply { gravity = Gravity.TOP or Gravity.START }
 
         val dm: DisplayMetrics = app.resources.displayMetrics
-        cornerXY(Config.bubblePosition, dm.widthPixels, dm.heightPixels, sizePx).let {
-            p.x = it.first; p.y = it.second
+        if (Config.bubbleX >= 0 && Config.bubbleY >= 0) {
+            p.x = Config.bubbleX.coerceIn(0, (dm.widthPixels - sizePx).coerceAtLeast(0))
+            p.y = Config.bubbleY.coerceIn(0, (dm.heightPixels - sizePx).coerceAtLeast(0))
+        } else {
+            cornerXY("bottom_right", dm.widthPixels, dm.heightPixels, sizePx).let {
+                p.x = it.first; p.y = it.second
+            }
         }
 
         var downX = 0f; var downY = 0f; var startX = 0; var startY = 0
@@ -81,15 +86,14 @@ object BubbleManager {
                     if (!moved) {
                         onTap?.invoke()
                     } else {
-                        // snap to nearest corner + persist
+                        // free position: clamp on-screen + persist raw x/y
                         val dm2: DisplayMetrics = app.resources.displayMetrics
-                        val corner = nearestCorner(p.x, p.y, dm2.widthPixels, dm2.heightPixels)
-                        Config.bubblePosition = corner
-                        Config.save(app)
-                        cornerXY(corner, dm2.widthPixels, dm2.heightPixels, sizePx).let {
-                            p.x = it.first; p.y = it.second
-                        }
+                        p.x = p.x.coerceIn(0, (dm2.widthPixels - sizePx).coerceAtLeast(0))
+                        p.y = p.y.coerceIn(0, (dm2.heightPixels - sizePx).coerceAtLeast(0))
                         wm?.updateViewLayout(v, p)
+                        Config.bubbleX = p.x
+                        Config.bubbleY = p.y
+                        Config.save(app)
                     }
                     true
                 }
@@ -118,15 +122,4 @@ object BubbleManager {
             "bottom_left" -> Pair(m, h - s - m * 4)
             else -> Pair(w - s - m, h - s - m * 4) // bottom_right
         }
-
-    private fun nearestCorner(x: Int, y: Int, w: Int, h: Int): String {
-        val left = x < w / 2
-        val top = y < h / 2
-        return when {
-            top && left -> "top_left"
-            top -> "top_right"
-            left -> "bottom_left"
-            else -> "bottom_right"
-        }
-    }
 }

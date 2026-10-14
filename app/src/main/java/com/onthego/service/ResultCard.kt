@@ -10,21 +10,20 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.onthego.Config
 import com.onthego.output.ClipboardHelper
 
 /**
- * Result card overlay. Text + [Copy again] [Close]. Auto-hides after
- * Config.cardDurationSeconds. Copy already happened automatically.
+ * Result card overlay. Text + [Copy again] [Close]. Always shown, 5s auto-hide.
+ * Copy + history already happened in TranscriptionService.
  */
 object ResultCard {
+    private const val CARD_MS = 5000L
     private var wm: WindowManager? = null
     private var view: LinearLayout? = null
     private val handler = Handler(Looper.getMainLooper())
     private var hideRun: Runnable? = null
 
     fun show(ctx: Context, text: String, onRetry: (() -> Unit)? = null) {
-        if (!Config.card) return
         if (!BubbleManager.canDraw(ctx)) return
         val app = ctx.applicationContext
         dismiss()
@@ -73,7 +72,7 @@ object ResultCard {
         wm?.addView(layout, p)
 
         hideRun = Runnable { dismiss() }
-        handler.postDelayed(hideRun!!, Config.cardDurationSeconds * 1000L)
+        handler.postDelayed(hideRun!!, CARD_MS)
     }
 
     fun dismiss() {
