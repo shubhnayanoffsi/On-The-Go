@@ -156,6 +156,7 @@ class MainActivity : AppCompatActivity() {
             refreshAll()
         }
         findViewById<Button>(R.id.btnModel).setOnClickListener { downloadModel() }
+        findViewById<Button>(R.id.btnMicTest).setOnClickListener { micTest() }
         findViewById<Button>(R.id.btnUpdate).setOnClickListener {
             findViewById<TextView>(R.id.updateStatus).text = "Checking..."
             Thread {
@@ -179,6 +180,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun micTest() {
+        val st = findViewById<TextView>(R.id.micTestStatus)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            st.text = "Mic permission missing. Allow it first."
+            micPerm.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        st.text = "Listening 3s, speak now..."
+        Thread {
+            try {
+                val cap = com.onthego.audio.AudioCapture()
+                cap.start()
+                Thread.sleep(3000)
+                val pcm = cap.stop()
+                val info = cap.info()
+                runOnUiThread {
+                    st.text = if (info.samples == 0) {
+                        "Got 0 bytes. Close other recorder apps and retry."
+                    } else {
+                        "Heard ${"%.1f".format(info.seconds)}s, loudness ${info.peakPct}%." +
+                            if (info.peakPct < 3) " Too quiet, speak closer." else " Mic works."
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { st.text = "Mic failed: ${e.message}" }
+            }
+        }.start()
+    }
+
     private fun downloadModel() {
         if (downloading) return
         downloading = true
@@ -189,11 +221,17 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.modelStatus).text = "Downloading..."
         Thread {
             try {
-                ModelDownloader.download(this) { p ->
-                    runOnUiThread {
-                        bar.progress = p
-                        pct.text = "$p%"
-                        findViewById<TextView>(R.id.modelStatus).text = "Downloading... $p%"
+                val names = listOf(ModelDownloader.TINY, ModelDownloader.BASE)
+                for ((i, name) in names.withIndex()) {
+                    if (ModelDownloader.isReady(this, name)) continue
+                    ModelDownloader.download(this, name) { p ->
+                        val all = (i * 100 + p) / names.size
+                        runOnUiThread {
+                            bar.progress = all
+                            pct.text = "$all%"
+                            findViewById<TextView>(R.id.modelStatus).text =
+                                "Downloading voice pack... $all%"
+                        }
                     }
                 }
                 runOnUiThread {
@@ -224,8 +262,8 @@ class MainActivity : AppCompatActivity() {
     private fun refreshModel() {
         val status = findViewById<TextView>(R.id.modelStatus)
         val row = findViewById<LinearLayout>(R.id.modelProgressRow)
-        if (ModelDownloader.isReady(this)) {
-            val mb = ModelDownloader.modelFile(this).length() / 1_000_000
+        if (ModelDownloader.isPackReady(this)) {
+            val mb = ModelDownloader.packSizeMb(this)
             status.text = "Ready ($mb MB on your phone)"
             row.visibility = View.GONE
         } else if (!downloading) {

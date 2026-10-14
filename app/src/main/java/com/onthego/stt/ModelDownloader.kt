@@ -12,6 +12,7 @@ import java.net.URL
 object ModelDownloader {
     const val TINY = "ggml-tiny.en.bin" // ~75MB, clips <15s
     const val BASE = "ggml-base.en.bin" // ~142MB, clips >=15s
+    const val LEGACY = "ggml-base.bin" // v0.1.x file, reused if present
 
     private const val HF = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"
     private val EXPECTED = mapOf(TINY to 75_000_000L, BASE to 142_000_000L)
@@ -21,9 +22,31 @@ object ModelDownloader {
     fun modelFile(ctx: Context, name: String = BASE): File =
         File(ctx.filesDir, "models/$name")
 
+    /** v0.1.x left ggml-base.bin behind: valid whisper model, reuse it, no re-download. */
+    fun legacyFile(ctx: Context): File = File(ctx.filesDir, "models/$LEGACY")
+
+    fun hasLegacy(ctx: Context): Boolean {
+        val f = legacyFile(ctx)
+        return f.exists() && f.length() >= 120_000_000L
+    }
+
     fun isReady(ctx: Context, name: String = BASE, minBytes: Long = minBytesFor(name)): Boolean {
         val f = modelFile(ctx, name)
         return f.exists() && f.length() >= minBytes
+    }
+
+    /** Anything usable: either voice pack file or the v0.1 file. */
+    fun isPackReady(ctx: Context): Boolean =
+        isReady(ctx, TINY) || isReady(ctx, BASE) || hasLegacy(ctx)
+
+    fun packSizeMb(ctx: Context): Long {
+        var total = 0L
+        for (n in listOf(TINY, BASE, LEGACY)) {
+            val f = modelFile(ctx, n)
+            if (n == LEGACY && !f.exists()) continue
+            if (f.exists()) total += f.length()
+        }
+        return total / 1_000_000
     }
 
     fun download(ctx: Context, name: String = BASE, onProgress: (pct: Int) -> Unit = {}) {

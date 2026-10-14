@@ -97,7 +97,7 @@ class FirstRunActivity : AppCompatActivity() {
             if (mic && overlay) View.VISIBLE else View.GONE
         findViewById<View>(R.id.stepChoice).visibility =
             if (mic && overlay && batt) View.VISIBLE else View.GONE
-        if (ModelDownloader.isReady(this)) {
+        if (ModelDownloader.isPackReady(this)) {
             modelDone = true
             showDone()
         }
@@ -112,10 +112,15 @@ class FirstRunActivity : AppCompatActivity() {
         row.visibility = View.VISIBLE
         Thread {
             try {
-                ModelDownloader.download(this) { p ->
-                    runOnUiThread {
-                        bar.progress = p
-                        pct.text = "$p%"
+                val names = listOf(ModelDownloader.TINY, ModelDownloader.BASE)
+                for ((i, name) in names.withIndex()) {
+                    if (ModelDownloader.isReady(this, name)) continue
+                    ModelDownloader.download(this, name) { p ->
+                        val all = (i * 100 + p) / names.size
+                        runOnUiThread {
+                            bar.progress = all
+                            pct.text = "$all%"
+                        }
                     }
                 }
                 runOnUiThread {

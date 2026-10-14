@@ -102,22 +102,35 @@ class TranscriptionService : Service() {
             var engine = "local"
             var text = ""
             var err: String? = null
+            val info = capture.info()
             try {
-                val sttKey = try { KeysStore.getSttKey(this) } catch (_: Exception) { "" }
-                engine = when (Config.engineMode) {
-                    "offline" -> "local"
-                    "api" -> "api"
-                    else -> if (sttKey.isNotBlank()) "api" else "local"
-                }
-                text = if (engine == "api") {
-                    if (sttKey.isBlank()) {
-                        err = "Missing API key. Add it in Settings."
-                        ""
-                    } else {
-                        ApiTranscriber.transcribe(pcm, Config.sttProvider, Config.sttEndpoint, sttKey)
-                    }
+                if (info.samples == 0) {
+                    err = "Mic captured nothing. Check permission, close other recorder apps, retry."
                 } else {
-                    whisper.transcribe(this, pcm, Config.language)
+                    val sttKey = try { KeysStore.getSttKey(this) } catch (_: Exception) { "" }
+                    engine = when (Config.engineMode) {
+                        "offline" -> "local"
+                        "api" -> "api"
+                        else -> if (sttKey.isNotBlank()) "api" else "local"
+                    }
+                    text = if (engine == "api") {
+                        if (sttKey.isBlank()) {
+                            err = "Missing API key. Add it in Settings."
+                            ""
+                        } else {
+                            ApiTranscriber.transcribe(pcm, Config.sttProvider, Config.sttEndpoint, sttKey)
+                        }
+                    } else {
+                        whisper.transcribe(this, pcm, Config.language)
+                    }
+                    if (text.isBlank() && err == null) {
+                        err = when (whisper.lastReason) {
+                            "no-model" -> "Model missing. Download it in Settings."
+                            "load-fail" -> "Model file broken. Delete it in Settings and download again."
+                            "engine-crash" -> "Speech engine crashed. Restart the service and retry."
+                            else -> "Heard only silence (${info.seconds.toInt()}s, peak ${info.peakPct}%). Speak closer and retry."
+                        }
+                    }
                 }
                 if (text.isNotBlank() && Config.aiFixMode == "api") {
                     val fixKey = try { KeysStore.getFixKey(this) } catch (_: Exception) { "" }
@@ -128,7 +141,7 @@ class TranscriptionService : Service() {
                 text = ""
             }
             val inferMs = SystemClock.elapsedRealtime() - t0
-            Log.d("OTG-TIME", "rec=${recSec}s infer=${inferMs}ms engine=$engine chars=${text.length}")
+            Log.d("OTG-TIME", "rec=${recSec}s mic=${info.samples}@${info.peakPct}% err=${info.readErrors} infer=${inferMs}ms engine=$engine chars=${text.length} reason=${whisper.lastReason}")
             val out = text
             val outErr = err
             handler.post {
@@ -153,7 +166,8 @@ class TranscriptionService : Service() {
 
     private fun localReady(): Boolean = try {
         ModelDownloader.isReady(this, ModelDownloader.TINY) ||
-            ModelDownloader.isReady(this, ModelDownloader.BASE)
+            ModelDownloader.isReady(this, ModelDownloader.BASE) ||
+            ModelDownloader.hasLegacy(this)
     } catch (_: Exception) {
         false
     }

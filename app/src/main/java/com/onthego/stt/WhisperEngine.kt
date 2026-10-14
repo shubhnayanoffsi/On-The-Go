@@ -13,25 +13,44 @@ import com.onthego.vad.SileroVad
  */
 class WhisperEngine {
     @Volatile private var loadedPath: String? = null
+    @Volatile var lastReason: String = ""
+        private set
 
     fun isReady(ctx: Context): Boolean =
         ModelDownloader.isReady(ctx, ModelDownloader.TINY) ||
-            ModelDownloader.isReady(ctx, ModelDownloader.BASE)
+            ModelDownloader.isReady(ctx, ModelDownloader.BASE) ||
+            ModelDownloader.hasLegacy(ctx)
 
     @Synchronized
     fun transcribe(ctx: Context, pcm16k: ShortArray, language: String = "en"): String {
+        lastReason = ""
         try {
+            if (pcm16k.isEmpty()) { lastReason = "no-audio"; return "" }
             val speech = SileroVad.filterSpeech(pcm16k, Config.vadStrict)
-            if (speech.isEmpty()) return ""
-            val name = if (speech.size / 16000 < 15) ModelDownloader.TINY else ModelDownloader.BASE
-            if (!ensureLoaded(ctx, name)) return ""
+            if (speech.isEmpty()) { lastReason = "no-audio"; return "" }
+            val name = pickModel(ctx, speech)
+            if (name == null) { lastReason = "no-model"; return "" }
+            if (!ensureLoaded(ctx, name)) { lastReason = "load-fail"; return "" }
             val lang = if (language == "auto") "" else language
-            return try {
+            val out = try {
                 nativeTranscribeChunk(speech, lang)
-            } catch (_: Throwable) { "" }
+            } catch (_: Throwable) { lastReason = "engine-crash"; "" }
+            if (out.isBlank() && lastReason.isEmpty()) lastReason = "empty-result"
+            return out
         } catch (_: Throwable) {
+            if (lastReason.isEmpty()) lastReason = "engine-crash"
             return ""
         }
+    }
+
+    /** Empty string = caller uses legacy v0.1 file directly. */
+    private fun pickModel(ctx: Context, speech: ShortArray): String? {
+        val want = if (speech.size / 16000 < 15) ModelDownloader.TINY else ModelDownloader.BASE
+        if (ModelDownloader.isReady(ctx, want)) return want
+        val other = if (want == ModelDownloader.TINY) ModelDownloader.BASE else ModelDownloader.TINY
+        if (ModelDownloader.isReady(ctx, other)) return other
+        if (ModelDownloader.hasLegacy(ctx)) return "" // legacy ggml-base.bin
+        return null
     }
 
     @Synchronized
@@ -46,7 +65,8 @@ class WhisperEngine {
     }
 
     private fun ensureLoaded(ctx: Context, name: String): Boolean {
-        val f = ModelDownloader.modelFile(ctx, name)
+        val f = if (name.isEmpty()) ModelDownloader.legacyFile(ctx)
+        else ModelDownloader.modelFile(ctx, name)
         if (!f.exists()) return false
         val path = f.absolutePath
         if (loadedPath == path) return true

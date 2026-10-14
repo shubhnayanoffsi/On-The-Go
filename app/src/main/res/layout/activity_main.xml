@@ -136,6 +136,18 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Download voice pack" />
+
+                <Button
+                    android:id="@+id/btnMicTest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Test microphone (3s)" />
+
+                <TextView
+                    android:id="@+id/micTestStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
